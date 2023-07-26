@@ -39,6 +39,8 @@ from .single_template import SingleTemplate
 from .relbin import Relative, RelativeTime, RelativeTimeDom
 from .hierarchical import (HierarchicalModel, MultiSignalModel,
                            JointPrimaryMarginalizedModel)
+from .lisa_ew import LISAEarlyWarningModel
+
 
 # Used to manage a model instance across multiple cores or MPI
 _global_instance = None
@@ -209,6 +211,7 @@ _models = {_cls.name: _cls for _cls in (
     MultiSignalModel,
     RelativeTimeDom,
     JointPrimaryMarginalizedModel,
+    LISAEarlyWarningModel,
 )}
 
 
