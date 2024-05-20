@@ -28,7 +28,11 @@ from .base import BaseModel
 
 import pycbc.psd
 
-from pycbc.waveform.early_warning_wform import generate_early_warning_psds, generate_data_lisa_ew, generate_waveform_lisa_ew
+from pycbc.waveform.early_warning_wform import (
+    generate_early_warning_psds,
+    generate_data_lisa_ew,
+    generate_waveform_lisa_ew,
+)
 from pycbc.waveform.waveform import parse_mode_array
 from .tools import marginalize_likelihood
 
@@ -87,10 +91,6 @@ class LISAEarlyWarningModel(BaseModel):
         tlen = int(kwargs.pop('tlen'))
         sample_rate = float(kwargs.pop('sample_rate'))
         psd_duration = int(kwargs.pop('psd_duration'))
-        psd_low_freq_cutoff = (
-            float(kwargs['psd_low_freq_cutoff'])
-            if 'psd_low_freq_cutoff' in kwargs else None
-        )
         inj_keys = [item for item in kwargs.keys() if item.startswith('injparam')]
         inj_params = {}
         for key in inj_keys:
@@ -144,15 +144,14 @@ class LISAEarlyWarningModel(BaseModel):
         self.psds_for_datagen = {}
         self.psds_for_datagen['LISA_A'] = psd
         self.psds_for_datagen['LISA_E'] = psd.copy()
-        assert psd_duration == 2592000
+
         psds_outs = generate_early_warning_psds(
             psd_file,
-            tlen=tlen,
             sample_rate=sample_rate,
             duration=psd_duration,
             kernel_length=psd_kernel_length,
-            low_freq_cutoff=psd_low_freq_cutoff,
         )
+        # Only store the frequency domain PSDs
         self.whitening_psds = {}
         self.whitening_psds['LISA_A'] = psds_outs[0][0]
         self.whitening_psds['LISA_E'] = psds_outs[1][0]
@@ -195,10 +194,11 @@ class LISAEarlyWarningModel(BaseModel):
         cutoff_time = self.cutoff_time + (cparams['t_obs_start'] - cparams['tc'])
         ws = generate_waveform_lisa_ew(
             cparams,
-            self.whitening_psds,
-            self.window_length,
-            cutoff_time,
-            self.kernel_length,
+            psds_for_whitening=self.whitening_psds,
+            window_length=self.window_length,
+            sample_rate=self.sample_rate,
+            cutoff_time=cutoff_time,
+            kernel_length=self.kernel_length,
             extra_forward_zeroes=self.extra_forward_zeroes,
         )
         wform_lisa_a = ws['LISA_A']
