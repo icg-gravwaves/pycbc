@@ -365,43 +365,66 @@ class PSDFirKernel(object):
 
         return kernel, phase
 
+
 def generate_early_warning_psds(
     psd_file,
-    tlen,
     sample_rate,
     duration,
     kernel_length=17280,
-    low_freq_cutoff=None,
 ):
+    """Generate early warning PSDs
+    
+    Parameters
+    ----------
+    psd_file : str
+        Path to the PSD file. Assumes the same PSD for A and E channels.
+    sample_rate : float
+        The sample rate.
+    duration : float
+        Duration in seconds.
+    kernel_length : int
+        Length of the whitening kernel.
+
+    Returns
+    -------
+    tuple
+        Frequency domain and time domain LISA A PSD 
+    tuple
+        Frequency domain and time domain LISA E PSD 
     """
-    Definitely make this less hardcoded!!
-    """
-    length = int(tlen * sample_rate)
-    flen = length // 2 + 1
+    flen = int(duration * sample_rate) // 2 + 1
     delta_f = 1 / duration
     delta_t = 1 / sample_rate
     td_psd_length = int(duration * sample_rate)
     # Use same PSD for A & E
-    psd = pycbc.psd.from_txt(psd_file, flen, 1./tlen, 1./tlen, is_asd_file=False)
-    if low_freq_cutoff is not None:
-        raise NotImplementedError(
-            "Lower frequency cutoff is not implemented yet!"
-        )
+    psd = pycbc.psd.from_txt(
+        psd_file, flen, delta_f, delta_f, is_asd_file=False
+    )
 
     psd_kern = PSDFirKernel()
 
     lisa_a_psd_lal = psd.lal()
 
-    first_psd_kern, latency, sample_rate = psd_kern.psd_to_linear_phase_whitening_fir_kernel(lisa_a_psd_lal)
-    lisa_a_zero_phase_kern, phase = psd_kern.linear_phase_fir_kernel_to_minimum_phase_whitening_fir_kernel(first_psd_kern, sample_rate)
+    first_psd_kern, latency, sample_rate = \
+        psd_kern.psd_to_linear_phase_whitening_fir_kernel(lisa_a_psd_lal)
+    lisa_a_zero_phase_kern, phase = \
+        psd_kern.linear_phase_fir_kernel_to_minimum_phase_whitening_fir_kernel(first_psd_kern, sample_rate)
     lisa_a_zero_phase_kern = lisa_a_zero_phase_kern * sample_rate**(1.5) / 2**0.5
-    lisa_a_zero_phase_kern_cut = lisa_a_zero_phase_kern[-kernel_length:]
 
-    lisa_a_zero_phase_kern_pycbc = pycbc.types.TimeSeries(pycbc.types.zeros(td_psd_length), delta_t=delta_t)
+    lisa_a_zero_phase_kern_pycbc = pycbc.types.TimeSeries(
+        pycbc.types.zeros(td_psd_length),
+        delta_t=delta_t,
+    )
     lisa_a_zero_phase_kern_pycbc.data[-kernel_length:] = lisa_a_zero_phase_kern[-kernel_length:]
     lisa_a_zero_phase_kern_pycbc.data[0] = lisa_a_zero_phase_kern[0] # Do I want to do this??
 
-    lisa_a_zero_phase_kern_pycbc_fd = pycbc.types.FrequencySeries(pycbc.types.zeros(len(lisa_a_zero_phase_kern_pycbc) //2 + 1, dtype=np.complex128), delta_f=delta_f)
+    lisa_a_zero_phase_kern_pycbc_fd = pycbc.types.FrequencySeries(
+        pycbc.types.zeros(
+            len(lisa_a_zero_phase_kern_pycbc) //2 + 1,
+            dtype=np.complex128,
+        ),
+        delta_f=delta_f
+    )
     pycbc.fft.fft(lisa_a_zero_phase_kern_pycbc, lisa_a_zero_phase_kern_pycbc_fd)
     lisa_a_zero_phase_kern_pycbc_td = lisa_a_zero_phase_kern_pycbc
 
@@ -409,19 +432,32 @@ def generate_early_warning_psds(
 
     lisa_e_psd_lal = psd.lal()
 
-    first_psd_kern, latency, sample_rate = psd_kern.psd_to_linear_phase_whitening_fir_kernel(lisa_e_psd_lal)
-    lisa_e_zero_phase_kern, phase = psd_kern.linear_phase_fir_kernel_to_minimum_phase_whitening_fir_kernel(first_psd_kern, sample_rate)
+    first_psd_kern, latency, sample_rate = \
+        psd_kern.psd_to_linear_phase_whitening_fir_kernel(lisa_e_psd_lal)
+    lisa_e_zero_phase_kern, phase = \
+        psd_kern.linear_phase_fir_kernel_to_minimum_phase_whitening_fir_kernel(first_psd_kern, sample_rate)
     lisa_e_zero_phase_kern = lisa_e_zero_phase_kern * sample_rate**(1.5) / 2**0.5
-    lisa_e_zero_phase_kern_cut = lisa_e_zero_phase_kern[-kernel_length:]
 
-    lisa_e_zero_phase_kern_pycbc = pycbc.types.TimeSeries(pycbc.types.zeros(td_psd_length), delta_t=delta_t)
+    lisa_e_zero_phase_kern_pycbc = pycbc.types.TimeSeries(
+        pycbc.types.zeros(td_psd_length),
+        delta_t=delta_t,
+    )
     lisa_e_zero_phase_kern_pycbc.data[-kernel_length:] = lisa_e_zero_phase_kern[-kernel_length:]
     lisa_e_zero_phase_kern_pycbc.data[0] = lisa_e_zero_phase_kern[0] # Do I want to do this??
 
-    lisa_e_zero_phase_kern_pycbc_fd = pycbc.types.FrequencySeries(pycbc.types.zeros(len(lisa_e_zero_phase_kern_pycbc) //2 + 1, dtype=np.complex128), delta_f=delta_f)
+    lisa_e_zero_phase_kern_pycbc_fd = pycbc.types.FrequencySeries(
+        pycbc.types.zeros(
+            len(lisa_e_zero_phase_kern_pycbc) //2 + 1,
+            dtype=np.complex128
+        ),
+        delta_f=delta_f,
+    )
     pycbc.fft.fft(lisa_e_zero_phase_kern_pycbc, lisa_e_zero_phase_kern_pycbc_fd)
     lisa_e_zero_phase_kern_pycbc_td = lisa_e_zero_phase_kern_pycbc
-    return [lisa_a_zero_phase_kern_pycbc_fd, lisa_a_zero_phase_kern_pycbc_td], [lisa_e_zero_phase_kern_pycbc_fd, lisa_e_zero_phase_kern_pycbc_td]
+    return (
+        [lisa_a_zero_phase_kern_pycbc_fd, lisa_a_zero_phase_kern_pycbc_td],
+        [lisa_e_zero_phase_kern_pycbc_fd, lisa_e_zero_phase_kern_pycbc_td],
+    )
 
 
 def generate_data_lisa_ew(
@@ -586,7 +622,7 @@ def generate_waveform_lisa_ew(
         uid=1235
     )
     fout_A.data[:] = fout_A.data[:] * (psds_for_whitening['LISA_A'].data[:]).conj()
-    
+
     fout_E = pycbc.strain.strain.execute_cached_fft(
         tout_E,
         copy_output=True,
