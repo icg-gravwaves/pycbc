@@ -472,6 +472,39 @@ def generate_data_lisa_ew(
     zero_noise=False,
     no_signal=False,
 ):
+    """Generate data for early warning data.
+    
+    Parameters
+    ----------
+    waveform_params : dict
+        Dictionary of waveform parameters
+    psds_for_datagen : dict
+        PSDs for data generation.
+    psds_for_whitening : dict
+        PSDs for whitening.
+    window_length : int
+        Length of the hann window use to taper the start of the data.
+    cutoff_time : float
+        Time before merge to cutoff the data.
+    sample_rate : float
+        Sampling rate in Hz. 
+    extra_forward_zeros : float
+        Duration at the start of the data to set to zero.
+    seed : int
+        Random seed used for generating the noise.
+    zero_noise : bool
+        If true, the noise will be set to zero.
+    no_signal : bool
+        If true, the signal will not be added to data and only noise will
+        be returned.
+
+    Returns
+    -------
+    pycbc.types.TimeSeries
+        Data for the LISA A channel
+    pycbc.types.TimeSeries
+        Data for the LISA E channel
+    """
     
     window = signal.windows.hann(window_length * 2 + 1)[:window_length]
 
