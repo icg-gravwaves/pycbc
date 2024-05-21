@@ -28,7 +28,7 @@ from .base import BaseModel
 
 import pycbc.psd
 
-from pycbc.waveform.early_warning_wform import (
+from pycbc.waveform.pre_merger_waveform import (
     generate_data_lisa_pre_merger,
     generate_waveform_lisa_pre_merger,
 )
