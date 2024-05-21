@@ -1,12 +1,74 @@
 from scipy import signal
 
-import pycbc.psd
-import pycbc.waveform
-import pycbc.strain
+import pycbc.fft
 import pycbc.noise
+import pycbc.strain
+import pycbc.waveform
 
 
-def generate_data_lisa_ew(
+def apply_pre_merger_kernel(
+    tout,
+    whitening_psd,
+    window,
+    window_length,
+    nefz,
+    nctf,
+    uids,
+):
+    """Helper function to apply the pre-merger kernel.
+    
+    Parameters
+    ----------
+    tout : pycbc.types.TimeSeries
+        Time series to apply the kernel to.
+    whitening_psd : pycbc.types.FrequencySeries
+        PSD for whitening the data in the frequency-domain.
+    window : numpy.ndarray
+        Window array.
+    window_length : int
+        Pre-computed length of the window in samples.
+    nefz : int
+        Number of extra forward zeroes.
+    nctf : int
+        Number of samples to zero at the end of the data.
+    uids : tuple
+        Unique UIDs for computing the (i)FFTs. Must be length 2.
+
+    Returns
+    -------
+    pycbc.types.TimeSeries
+        Whitened time series.
+    """
+    # Zero initial data
+    tout.data[:nefz] = 0
+    # Apply window
+    tout.data[nefz:nefz+window_length] *= window
+    # Zero data from cutoff
+    tout.data[-nctf:] = 0
+
+    # TD to FD for whitening 
+    fout = pycbc.strain.strain.execute_cached_fft(
+        tout,
+        copy_output=True,
+        uid=uids[0],
+    )
+    # Whiten data
+    fout.data[:] = fout.data[:] * (whitening_psd.data[:]).conj()
+
+    # TD to FD to reapply zeroes
+    tout_ww = pycbc.strain.strain.execute_cached_ifft(
+        fout,
+        copy_output=False,
+        uid=uids[1],
+    )
+    # Zero initial data
+    tout_ww.data[:nefz] = 0
+    # Zero from cutoff
+    tout_ww.data[-nctf:] = 0
+    return tout
+
+
+def generate_data_lisa_pre_merger(
     waveform_params,
     psds_for_datagen,
     psds_for_whitening,
@@ -18,7 +80,9 @@ def generate_data_lisa_ew(
     zero_noise=False,
     no_signal=False,
 ):
-    """Generate data for early warning data.
+    """Generate pre-merger LISA data.
+
+    UIDs used for FFTs: 4235(0), 4236(0)
     
     Parameters
     ----------
@@ -46,17 +110,17 @@ def generate_data_lisa_ew(
 
     Returns
     -------
-    pycbc.types.TimeSeries
-        Data for the LISA A channel
-    pycbc.types.TimeSeries
-        Data for the LISA E channel
+    Dict[str: pycbc.types.TimeSeries]
+        Dictionary containing the time-domain data for each channel.
     """
-    
+    # Compute the hann window 
     window = signal.windows.hann(window_length * 2 + 1)[:window_length]
 
+    # Number of samples to zero
     nefz = int(extra_forward_zeroes * sample_rate)
     nctf = int(cutoff_time * sample_rate)
 
+    # Generate injection
     outs = pycbc.waveform.get_fd_det_waveform(
         ifos=['LISA_A','LISA_E','LISA_T'],
         **waveform_params
@@ -64,11 +128,15 @@ def generate_data_lisa_ew(
     outs['LISA_A'].resize(len(psds_for_datagen["LISA_A"]))
     outs['LISA_E'].resize(len(psds_for_datagen["LISA_E"]))
 
+    # Shift waveform so the merger is not at the end of the data
     outs['LISA_A'] = outs['LISA_A'].cyclic_time_shift(-waveform_params['additional_end_data'])
     outs['LISA_E'] = outs['LISA_E'].cyclic_time_shift(-waveform_params['additional_end_data'])
+
+    # FS waveform to TD
     tout_A = outs['LISA_A'].to_timeseries()
     tout_E = outs['LISA_E'].to_timeseries()
 
+    # Generate TD noise from the original PSDs
     strain_w_A = pycbc.noise.noise_from_psd(
         len(tout_A),
         tout_A.delta_t,
@@ -86,55 +154,41 @@ def generate_data_lisa_ew(
     strain_w_A._epoch = tout_A._epoch
     strain_w_E._epoch = tout_E._epoch
 
+    # If zero noise, set noise to zero
     if zero_noise:
         strain_w_A *= 0.0
         strain_w_E *= 0.0
 
+    # Only add signal if no_signal=False
     if not no_signal:
         strain_w_A[:] += tout_A[:]
         strain_w_E[:] += tout_E[:]
 
-    strain_w_A.data[:nefz] = 0
-    strain_w_A.data[nefz:nefz + window_length] *= window
-    strain_w_A.data[-nctf:] = 0
-
-    strain_w_E.data[:nefz] = 0
-    strain_w_E.data[nefz:nefz+window_length] *= window
-    strain_w_E.data[-nctf:] = 0
-
-    strain_fout_A = pycbc.strain.strain.execute_cached_fft(
+    # Apply pre-merger kernel to both channels
+    strain_ww = {}
+    strain_ww["LISA_A"] = apply_pre_merger_kernel(
         strain_w_A,
-        copy_output=False,
-        uid=1236
+        whitening_psd=psds_for_whitening["LISA_A"],
+        window=window,
+        window_length=window_length,
+        nefz=nefz,
+        nctf=nctf,
+        uids=(4235, 4236),
     )
-    strain_fout_A = strain_fout_A * (psds_for_whitening['LISA_A']).conj()
-    strain_ww_A = pycbc.strain.strain.execute_cached_ifft(
-        strain_fout_A,
-        copy_output=False,
-        uid=1237
-    )
-    strain_ww_A.data[:nefz] = 0
-    strain_ww_A.data[-nctf:] = 0
-
-    strain_fout_E = pycbc.strain.strain.execute_cached_fft(
+    strain_ww["LISA_E"] = apply_pre_merger_kernel(
         strain_w_E,
-        copy_output=False,
-        uid=1238
+        whitening_psd=psds_for_whitening["LISA_E"],
+        window=window,
+        window_length=window_length,
+        nefz=nefz,
+        nctf=nctf,
+        uids=(42350, 42360),
     )
-    strain_fout_E = strain_fout_E * (psds_for_whitening['LISA_E']).conj()
-    strain_ww_E = pycbc.strain.strain.execute_cached_ifft(
-        strain_fout_E,
-        copy_output=False,
-        uid=1239
-    )
-    strain_ww_E.data[:nefz] = 0
-    strain_ww_E.data[-nctf:] = 0
-
-    return strain_ww_A, strain_ww_E
+    return strain_ww
 
 
 _WINDOW = None
-def generate_waveform_lisa_ew(
+def generate_waveform_lisa_pre_merger(
     waveform_params,
     psds_for_whitening,
     sample_rate,
@@ -143,7 +197,9 @@ def generate_waveform_lisa_ew(
     kernel_length,
     extra_forward_zeroes=0,
 ):
-    """
+    """Generate a pre-merger LISA waveform.
+
+    UIDs used for FFTs: 1234(0), 1235(0), 1236(0), 1237(0) 
     
     Parameters
     ----------
@@ -173,76 +229,53 @@ def generate_waveform_lisa_ew(
     nefz = int(extra_forward_zeroes * sample_rate)
     nctf = int(cutoff_time * sample_rate)
 
-    outs = pycbc.waveform.get_fd_det_waveform(ifos=['LISA_A','LISA_E','LISA_T'], **waveform_params)
+    # FIXME: do we need to generate LISA_T
+    outs = pycbc.waveform.get_fd_det_waveform(
+        ifos=['LISA_A','LISA_E','LISA_T'], **waveform_params
+    )
+
+    # FD waveform to TD so we can apply pre-merger kernel
     tout_A = pycbc.strain.strain.execute_cached_ifft(
-        outs['LISA_A'],
+        outs["LISA_A"],
         copy_output=False,
-        uid=1234
+        uid=1234,
     )
     tout_E = pycbc.strain.strain.execute_cached_ifft(
-        outs['LISA_E'],
+        outs["LISA_E"],
         copy_output=False,
-        uid=1233
+        uid=12340,
     )
-    
-    if extra_forward_zeroes:
-        tout_A.data[:nefz] = 0
-    tout_A.data[nefz:nefz+window_length] *= window
-    tout_A.data[-nctf:] = 0
-    
-    if extra_forward_zeroes:
-        tout_E.data[:nefz] = 0
-    tout_E.data[nefz:nefz+window_length] *= window
-    tout_E.data[-nctf:] = 0
 
-    fout_A = pycbc.strain.strain.execute_cached_fft(
+    # Apply pre-merger kernel
+    tout_A_ww = apply_pre_merger_kernel(
         tout_A,
-        copy_output=True,
-        uid=1235
+        whitening_psd=psds_for_whitening["LISA_A"],
+        window=window,
+        window_length=window_length,
+        nefz=nefz,
+        nctf=nctf,
+        uids=(1235, 1236),
     )
-    fout_A.data[:] = fout_A.data[:] * (psds_for_whitening['LISA_A'].data[:]).conj()
-
-    fout_E = pycbc.strain.strain.execute_cached_fft(
+    tout_E_ww = apply_pre_merger_kernel(
         tout_E,
-        copy_output=True,
-        uid=12350
+        whitening_psd=psds_for_whitening["LISA_E"],
+        window=window,
+        window_length=window_length,
+        nefz=nefz,
+        nctf=nctf,
+        uids=(12350, 12360),
     )
-    fout_E.data[:] = fout_E.data[:] * (psds_for_whitening['LISA_E'].data[:]).conj()
-
-    fout_ww_A = pycbc.strain.strain.execute_cached_ifft(
-        fout_A,
+    
+    # Back to FD for search/inference
+    fouts_ww = {}
+    fouts_ww["LISA_A"] = pycbc.strain.strain.execute_cached_fft(
+        tout_A_ww,
         copy_output=False,
-        uid=5237
+        uid=1237,
     )
-
-    if extra_forward_zeroes:
-        fout_ww_A.data[:nefz] = 0
-    fout_ww_A.data[-nctf:] = 0
-
-    fout_A = pycbc.strain.strain.execute_cached_fft(
-        fout_ww_A,
+    fouts_ww["LISA_E"] = pycbc.strain.strain.execute_cached_fft(
+        tout_E_ww,
         copy_output=False,
-        uid=5238
+        uid=12370,
     )
-
-    fout_ww_E = pycbc.strain.strain.execute_cached_ifft(
-        fout_E,
-        copy_output=False,
-        uid=5247
-    )
-    if extra_forward_zeroes:
-        fout_ww_E.data[:nefz] = 0
-    fout_ww_E.data[-nctf:] = 0
-
-    fout_E = pycbc.strain.strain.execute_cached_fft(
-        fout_ww_E,
-        copy_output=False,
-        uid=5248
-    )
-
-    fouts = {
-        'LISA_A': fout_A,
-        'LISA_E': fout_E,
-    }
-
-    return fouts
+    return fouts_ww
