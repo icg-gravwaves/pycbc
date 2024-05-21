@@ -29,10 +29,10 @@ from .base import BaseModel
 import pycbc.psd
 
 from pycbc.waveform.early_warning_wform import (
-    generate_early_warning_psds,
     generate_data_lisa_ew,
     generate_waveform_lisa_ew,
 )
+from pycbc.psd.lisa_pre_merger import generate_pre_merger_psds
 from pycbc.waveform.waveform import parse_mode_array
 from .tools import marginalize_likelihood
 
@@ -145,16 +145,21 @@ class LISAEarlyWarningModel(BaseModel):
         self.psds_for_datagen['LISA_A'] = psd
         self.psds_for_datagen['LISA_E'] = psd.copy()
 
-        psds_outs = generate_early_warning_psds(
+        # Zero phase PSDs for whitening
+        # Only store the frequency-domain PSDs
+        self.whitening_psds = {}
+        self.whitening_psds['LISA_A'] = generate_pre_merger_psds(
             psd_file,
             sample_rate=sample_rate,
             duration=psd_duration,
             kernel_length=psd_kernel_length,
-        )
-        # Only store the frequency domain PSDs
-        self.whitening_psds = {}
-        self.whitening_psds['LISA_A'] = psds_outs[0][0]
-        self.whitening_psds['LISA_E'] = psds_outs[1][0]
+        )["FD"]
+        self.whitening_psds['LISA_E'] = generate_pre_merger_psds(
+            psd_file,
+            sample_rate=sample_rate,
+            duration=psd_duration,
+            kernel_length=psd_kernel_length,
+        )["FD"]
 
         # Store data for doing likelihoods.
         curr_params = inj_params
