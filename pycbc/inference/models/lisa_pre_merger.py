@@ -20,9 +20,6 @@ log likelihood.
 
 import copy
 import logging
-import os
-import numpy
-import numpy.random
 
 from .base import BaseModel
 
@@ -35,9 +32,6 @@ from pycbc.waveform.pre_merger_waveform import (
 from pycbc.psd.lisa_pre_merger import generate_pre_merger_psds
 from pycbc.waveform.waveform import parse_mode_array
 from .tools import marginalize_likelihood
-
-global COUNTS
-COUNTS = {}
 
 
 # As per https://stackoverflow.com/questions/715417 this is
