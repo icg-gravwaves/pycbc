@@ -112,6 +112,7 @@ class LISAPreMergerModel(BaseModel):
             inj_params[key.replace('injparam_', '')] = value
 
         inj_params = parse_mode_array(inj_params)
+        logging.info(f"Pre-merger injection parameters:\n {inj_params}")
         
         # set up base likelihood parameters
         super().__init__(variable_params, **kwargs)
@@ -134,6 +135,7 @@ class LISAPreMergerModel(BaseModel):
 
         # Zero phase PSDs for whitening
         # Only store the frequency-domain PSDs
+        logging.info("Generating pre-merger PSDs")
         self.whitening_psds = {}
         self.whitening_psds['LISA_A'] = generate_pre_merger_psds(
             psd_file,
@@ -161,6 +163,7 @@ class LISAPreMergerModel(BaseModel):
         # Generate the pre-merger data
         # Returns time-domain data
         # Uses UIDs: 4235(0), 4236(0)
+        logging.info("Generating pre-merger data")
         data = generate_data_lisa_pre_merger(
             curr_params,
             psds_for_datagen=self.psds_for_datagen,
