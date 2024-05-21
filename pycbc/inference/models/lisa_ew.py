@@ -29,8 +29,8 @@ from .base import BaseModel
 import pycbc.psd
 
 from pycbc.waveform.early_warning_wform import (
-    generate_data_lisa_ew,
-    generate_waveform_lisa_ew,
+    generate_data_lisa_pre_merger,
+    generate_waveform_lisa_pre_merger,
 )
 from pycbc.psd.lisa_pre_merger import generate_pre_merger_psds
 from pycbc.waveform.waveform import parse_mode_array
@@ -169,8 +169,12 @@ class LISAEarlyWarningModel(BaseModel):
         self.extra_forward_zeroes = extra_forward_zeroes
 
         # Want to remove this!
+        # FIXME: think this might be wrong now
         cutoff_time = self.cutoff_time + (curr_params['t_obs_start'] - curr_params['tc'])
-        self.lisa_a_strain, self.lisa_e_strain = generate_data_lisa_ew(
+        # Generate the pre-merger data
+        # Returns time-domain data
+        # Uses UIDs: 4235(0), 4236(0)
+        data = generate_data_lisa_pre_merger(
             curr_params,
             psds_for_datagen=self.psds_for_datagen,
             psds_for_whitening=self.whitening_psds,
@@ -180,6 +184,10 @@ class LISAEarlyWarningModel(BaseModel):
             sample_rate=sample_rate,
             extra_forward_zeroes=self.extra_forward_zeroes,
         )
+        self.lisa_a_strain = data["LISA_A"]
+        self.lisa_e_strain = data["LISA_E"]
+
+        # Frequency-domain data for computing log-likelihood
         self.lisa_a_strain_fd = pycbc.strain.strain.execute_cached_fft(
             self.lisa_a_strain,
             copy_output=True,
@@ -192,12 +200,15 @@ class LISAEarlyWarningModel(BaseModel):
         )
 
     def _loglikelihood(self):
-        """Returns the log pdf of the multivariate normal.
-        """
+        """Compute the pre-merger log-likelihood."""
         cparams = copy.deepcopy(self.static_params)
         cparams.update(self.current_params)
+        # FIXME: think this is wrong
         cutoff_time = self.cutoff_time + (cparams['t_obs_start'] - cparams['tc'])
-        ws = generate_waveform_lisa_ew(
+        # Generate the pre-merger waveform
+        # These waveforms are whitened
+        # Uses UIDs: 1234(0), 1235(0), 1236(0), 1237(0)
+        ws = generate_waveform_lisa_pre_merger(
             cparams,
             psds_for_whitening=self.whitening_psds,
             window_length=self.window_length,
@@ -209,10 +220,18 @@ class LISAEarlyWarningModel(BaseModel):
         wform_lisa_a = ws['LISA_A']
         wform_lisa_e = ws['LISA_E']
 
-        snr_A = pycbc.filter.overlap_cplx(wform_lisa_a, self.lisa_a_strain_fd,
-                                     normalized=False)
-        snr_E = pycbc.filter.overlap_cplx(wform_lisa_e, self.lisa_e_strain_fd,
-                                     normalized=False)
+        # Compute <h|d> for each channel
+        snr_A = pycbc.filter.overlap_cplx(
+            wform_lisa_a,
+            self.lisa_a_strain_fd,
+            normalized=False,
+        )
+        snr_E = pycbc.filter.overlap_cplx(
+            wform_lisa_e,
+            self.lisa_e_strain_fd,
+            normalized=False,
+        )
+        # Compute <h|h> for each channel
         a_norm = pycbc.filter.sigmasq(wform_lisa_a)
         e_norm = pycbc.filter.sigmasq(wform_lisa_e)
 
