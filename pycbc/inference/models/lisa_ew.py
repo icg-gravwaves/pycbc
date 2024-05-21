@@ -96,7 +96,7 @@ class LISAEarlyWarningModel(BaseModel):
         for key in inj_keys:
             value = kwargs.pop(key)
             # Type conversion needed ... Ugly!!
-            if key in ['injparam_run_phenomd']:
+            if key in ['injparam_run_phenomd', 'injparam_zero_noise']:
                 value = strtobool(value)
             elif key in ['injparam_approximant']:
                 pass  # Convert to string, so do nothing
