@@ -59,19 +59,22 @@ def strtobool(val):
 
 
 
-class LISAEarlyWarningModel(BaseModel):
-    r"""Ian is messing around
+class LISAPreMergerModel(BaseModel):
+    r"""Model for pre-merger inference in LISA.
 
     Parameters
     ----------
     variable_params : (tuple of) string(s)
         A tuple of parameter names that will be varied.
+    static_params: Dict[str: Any]
+        Dictionary of static parameters used for waveform generation.
+    psd_file : str
+        Path to the PSD file. Uses the same PSD file for LISA_A and LISA_E
+        channels.
     **kwargs :
         All other keyword arguments are passed to ``BaseModel``.
-
-
     """
-    name = "lisa_ew"
+    name = "lisa_pre_merger"
 
     def __init__(
             self,
