@@ -71,13 +71,12 @@ class LISAPreMergerModel(BaseModel):
     name = "lisa_pre_merger"
 
     def __init__(
-            self,
-            variable_params,
-            static_params=None,
-            phase_marginalization=False,
-            psd_file=None,
-            **kwargs
-        ):
+        self,
+        variable_params,
+        static_params=None,
+        psd_file=None,
+        **kwargs
+    ):
         # Pop relevant values from kwargs
         cutoff_time = int(kwargs.pop('cutoff_time'))
         seed = int(kwargs.pop('seed'))
@@ -114,15 +113,6 @@ class LISAPreMergerModel(BaseModel):
 
         inj_params = parse_mode_array(inj_params)
         
-        if isinstance(phase_marginalization, str):
-            phase_marginalization = strtobool(phase_marginalization)
-        self.phase_marginalization = phase_marginalization
-        if self.phase_marginalization:
-            logging.warning(
-                "Phase marginalization is enabled! "
-                "This may leaded to incorrect results!"
-            )
-
         # set up base likelihood parameters
         super().__init__(variable_params, **kwargs)
 
@@ -235,4 +225,4 @@ class LISAPreMergerModel(BaseModel):
         hs = snr_A + snr_E
         hh = (a_norm + e_norm)
 
-        return marginalize_likelihood(hs, hh, phase=self.phase_marginalization)
+        return marginalize_likelihood(hs, hh, phase=False)
