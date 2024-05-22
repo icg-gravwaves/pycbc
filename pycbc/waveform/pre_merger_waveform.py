@@ -195,7 +195,6 @@ def generate_waveform_lisa_pre_merger(
     sample_rate,
     window_length,
     cutoff_time,
-    kernel_length,
     extra_forward_zeroes=0,
 ):
     """Generate a pre-merger LISA waveform.

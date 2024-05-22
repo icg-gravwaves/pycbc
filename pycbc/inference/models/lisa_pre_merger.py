@@ -220,7 +220,6 @@ class LISAPreMergerModel(BaseModel):
             window_length=self.window_length,
             sample_rate=self.sample_rate,
             cutoff_time=cutoff_time,
-            kernel_length=self.kernel_length,
             extra_forward_zeroes=self.extra_forward_zeroes,
         )
         wform_lisa_a = ws['LISA_A']
