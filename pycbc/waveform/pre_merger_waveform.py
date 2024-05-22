@@ -49,7 +49,7 @@ def apply_pre_merger_kernel(
     # TD to FD for whitening 
     fout = pycbc.strain.strain.execute_cached_fft(
         tout,
-        copy_output=True,
+        copy_output=False,
         uid=uids[0],
     )
     # Whiten data
