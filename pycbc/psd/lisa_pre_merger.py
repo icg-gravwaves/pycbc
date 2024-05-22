@@ -28,7 +28,9 @@ class PSDFirKernel(object):
         Compute the phase response of zero-latency whitening filter
         given a reference PSD.
         """
-        # FIXME: HorizonDistance below is not defined
+        raise NotImplementedError(
+            "`PSDFirKernel.set_phase` is not implemented!"
+        )
         kernel, latency, sample_rate = self.psd_to_linear_phase_whitening_fir_kernel(psd)
         kernel, phase = self.linear_phase_fir_kernel_to_minimum_phase_whitening_fir_kernel(kernel, sample_rate)
 
