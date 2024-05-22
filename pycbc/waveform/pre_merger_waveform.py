@@ -95,11 +95,12 @@ def generate_data_lisa_pre_merger(
     window_length : int
         Length of the hann window use to taper the start of the data.
     cutoff_time : float
-        Time before merge to cutoff the data.
+        Time (in seconds) from the end of the waveform to cutoff.
     sample_rate : float
         Sampling rate in Hz. 
     extra_forward_zeros : float
-        Duration at the start of the data to set to zero.
+        Time (in seconds) to set to zero at the start of the waveform. If used,
+        the window will be applied starting after the zeroes.
     seed : int
         Random seed used for generating the noise.
     zero_noise : bool
@@ -217,7 +218,7 @@ def generate_waveform_lisa_pre_merger(
         Time (in seconds) from the end of the waveform to cutoff.
     kernel_length : int
         Unused.
-    extra_foward_zeroes : int
+    extra_forward_zeroes : int
         Time (in seconds) to set to zero at the start of the waveform. If used,
         the window will be applied starting after the zeroes.
     """
