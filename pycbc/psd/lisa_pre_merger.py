@@ -375,13 +375,13 @@ def generate_pre_merger_psds(
     Parameters
     ----------
     psd_file : str
-        Path to the PSD file. Assumes the same PSD for A and E channels.
+        Path to the PSD file.
     sample_rate : float
         The sample rate.
     duration : float
         Duration in seconds.
     kernel_length : int
-        Length of the whitening kernel.
+        Length of the whitening kernel in samples.
 
     Returns
     -------
