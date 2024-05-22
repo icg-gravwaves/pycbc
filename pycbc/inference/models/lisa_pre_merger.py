@@ -86,13 +86,13 @@ class LISAPreMergerModel(BaseModel):
         extra_forward_zeroes = int(kwargs.pop('extra_forward_zeroes'))
         tlen = int(kwargs.pop('tlen'))
         sample_rate = float(kwargs.pop('sample_rate'))
-        psd_duration = int(kwargs.pop('psd_duration'))
+        zero_noise = strtobool(kwargs.pop('zero_noise'))
         inj_keys = [item for item in kwargs.keys() if item.startswith('injparam')]
         inj_params = {}
         for key in inj_keys:
             value = kwargs.pop(key)
             # Type conversion needed ... Ugly!!
-            if key in ['injparam_run_phenomd', 'injparam_zero_noise']:
+            if key in ['injparam_run_phenomd']:
                 value = strtobool(value)
             elif key in ['injparam_approximant']:
                 pass  # Convert to string, so do nothing
@@ -119,11 +119,12 @@ class LISAPreMergerModel(BaseModel):
 
         self.static_params = parse_mode_array(static_params)
 
-        length = int(tlen * sample_rate)
-        flen = length // 2 + 1
-
         if psd_file is None:
             raise ValueError("Must specify a PSD file!")
+
+        # Define PSDs for data generation
+        length = int(tlen * sample_rate)
+        flen = length // 2 + 1
 
         # Assume A & E PSDs are the same
         psd = pycbc.psd.from_txt(
@@ -140,13 +141,13 @@ class LISAPreMergerModel(BaseModel):
         self.whitening_psds['LISA_A'] = generate_pre_merger_psds(
             psd_file,
             sample_rate=sample_rate,
-            duration=psd_duration,
+            duration=tlen,
             kernel_length=psd_kernel_length,
         )["FD"]
         self.whitening_psds['LISA_E'] = generate_pre_merger_psds(
             psd_file,
             sample_rate=sample_rate,
-            duration=psd_duration,
+            duration=tlen,
             kernel_length=psd_kernel_length,
         )["FD"]
 
@@ -154,12 +155,14 @@ class LISAPreMergerModel(BaseModel):
         curr_params = inj_params
         self.kernel_length = kernel_length
         self.window_length = window_length
+        self.sample_rate = sample_rate
         self.cutoff_time = cutoff_time
         self.extra_forward_zeroes = extra_forward_zeroes
 
         # Want to remove this!
-        # FIXME: think this might be wrong now
-        cutoff_time = self.cutoff_time + (curr_params['t_obs_start'] - curr_params['tc'])
+        # Need time from end of data (this includes the time after tc)
+        cutoff_time = self.compute_cutoff_time(curr_params)
+
         # Generate the pre-merger data
         # Returns time-domain data
         # Uses UIDs: 4235(0), 4236(0)
@@ -173,7 +176,9 @@ class LISAPreMergerModel(BaseModel):
             cutoff_time=cutoff_time,
             sample_rate=sample_rate,
             extra_forward_zeroes=self.extra_forward_zeroes,
+            zero_noise=zero_noise,
         )
+
         self.lisa_a_strain = data["LISA_A"]
         self.lisa_e_strain = data["LISA_E"]
 
@@ -189,12 +194,23 @@ class LISAPreMergerModel(BaseModel):
             uid=3223967
         )
 
+    def compute_cutoff_time(self, cparams):
+        """Cutoff time including post merger data."""
+        return (
+            self.cutoff_time
+            + (
+                cparams['start_gps_time']
+                + cparams['t_obs_start']
+                - cparams['tc']
+            )
+        )
+
     def _loglikelihood(self):
         """Compute the pre-merger log-likelihood."""
         cparams = copy.deepcopy(self.static_params)
         cparams.update(self.current_params)
-        # FIXME: think this is wrong
-        cutoff_time = self.cutoff_time + (cparams['t_obs_start'] - cparams['tc'])
+        # Compute cutoff times that includes
+        cutoff_time = self.compute_cutoff_time(cparams)
         # Generate the pre-merger waveform
         # These waveforms are whitened
         # Uses UIDs: 1234(0), 1235(0), 1236(0), 1237(0)
