@@ -63,7 +63,7 @@ class PSDFirKernel(object):
     def psd_to_linear_phase_whitening_fir_kernel(
         self,
         psd: lal.REAL8FrequencySeries,
-        invert: Optional[bool] = True,
+        invert: bool = True,
         nyquist: Optional[float] = None
     ) -> Tuple[np.ndarray, int, int]:
         """
@@ -78,23 +78,23 @@ class PSDFirKernel(object):
         The phase response of this filter is 0, just like whitening
         done in the frequency domain.
 
-        Args:
-            psd:
-                lal.REAL8FrequencySeries, the reference PSD
-            invert:
-                bool, default true, whether to invert the kernel
-            nyquist:
-                float, disabled by default, whether to change
-                the Nyquist frequency.
+        Parameters
+        ----------
+        psd : lal.REAL8FrequencySeries
+            The reference PSD.
+        invert : bool
+            Whether to invert the kernel. Defaults to True.
+        nyquist :  float, optional
+            Whether to change the Nyquist frequency. Disabled by default.
 
-        Returns:
-            Tuple[np.ndarray, int, int], the kernel, latency,
-            sample rate pair.  The kernel is a np array containing
-            the filter kernel, the latency is the filter latency in
-            samples and the sample rate is in Hz.  The kernel and
-            latency can be used, for example, with gstreamer's stock
-            audiofirfilter element.
-
+        Returns
+        -------
+        numpy.ndarray
+            Array containing the filter kernel.
+        int
+            Filter latency in samples
+        int
+            The sample rate in Hz.
         """
         #
         # this could be relaxed with some work
@@ -203,17 +203,19 @@ class PSDFirKernel(object):
         Using Discrete Hilbert Transforms", IEEE Trans. Signal
         Processing, vol. 48, pp. 1491-1495, May 2000.
 
-        Args:
-            linear_phase_kernel:
-                np.ndarray, the kernel to compute the minimum-phase kernel with
-            sample_rate:
-                int, the sample rate
+        Parameters
+        -----------
+        linear_phase_kernel : numpy.ndarray
+            The kernel to compute the minimum-phase kernel with.
+        sample_rate : int
+            The sample rate in Hz.
 
-        Returns:
-            Tuple[np.ndarray. np.ndarray], the kernel and the phase response.
-            The kernel is a np array containing the filter kernel. The kernel
-            can be used, for example, with gstreamer's stock audiofirfilter element.
-
+        Returns
+        -------
+        numpy.ndarray
+            The filter kernel.
+        numpy.ndarray
+            The phase response.
         """
         #
         # compute abs of FFT of kernel
