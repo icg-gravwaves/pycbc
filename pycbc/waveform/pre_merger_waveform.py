@@ -65,7 +65,7 @@ def apply_pre_merger_kernel(
     tout_ww.data[:nefz] = 0
     # Zero from cutoff
     tout_ww.data[-nctf:] = 0
-    return tout
+    return tout_ww
 
 
 def generate_data_lisa_pre_merger(
