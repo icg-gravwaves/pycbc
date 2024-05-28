@@ -218,7 +218,7 @@ def pre_process_data_lisa_pre_merger(
     # Apply pre-merger kernel to both channels
     strain_ww = {}
     strain_ww["LISA_A"] = apply_pre_merger_kernel(
-        data,
+        data["LISA_A"],
         whitening_psd=psds_for_whitening["LISA_A"],
         window=window,
         window_length=window_length,
@@ -227,7 +227,7 @@ def pre_process_data_lisa_pre_merger(
         uids=(4235, 4236),
     )
     strain_ww["LISA_E"] = apply_pre_merger_kernel(
-        data,
+        data["LISA_E"],
         whitening_psd=psds_for_whitening["LISA_E"],
         window=window,
         window_length=window_length,
