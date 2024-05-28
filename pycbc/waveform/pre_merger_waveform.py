@@ -71,14 +71,11 @@ def apply_pre_merger_kernel(
 def generate_data_lisa_pre_merger(
     waveform_params,
     psds_for_datagen,
-    psds_for_whitening,
-    window_length,
-    cutoff_time,
     sample_rate,
-    extra_forward_zeroes=0,
     seed=137,
     zero_noise=False,
     no_signal=False,
+    duration=None,
 ):
     """Generate pre-merger LISA data.
 
@@ -90,12 +87,6 @@ def generate_data_lisa_pre_merger(
         Dictionary of waveform parameters
     psds_for_datagen : dict
         PSDs for data generation.
-    psds_for_whitening : dict
-        PSDs for whitening.
-    window_length : int
-        Length of the hann window use to taper the start of the data.
-    cutoff_time : float
-        Time (in seconds) from the end of the waveform to cutoff.
     sample_rate : float
         Sampling rate in Hz. 
     extra_forward_zeros : float
@@ -108,26 +99,20 @@ def generate_data_lisa_pre_merger(
     no_signal : bool
         If true, the signal will not be added to data and only noise will
         be returned.
+    duration : float, optional
+        If specified, the waveform will be truncated to match the specified
+        duration.
 
     Returns
     -------
     Dict[str: pycbc.types.TimeSeries]
         Dictionary containing the time-domain data for each channel.
     """
-    # Compute the hann window 
-    window = signal.windows.hann(window_length * 2 + 1)[:window_length]
-
-    # Number of samples to zero
-    nefz = int(extra_forward_zeroes * sample_rate)
-    nctf = int(cutoff_time * sample_rate)
-
     # Generate injection
     outs = pycbc.waveform.get_fd_det_waveform(
         ifos=['LISA_A','LISA_E','LISA_T'],
         **waveform_params
     )
-    outs['LISA_A'].resize(len(psds_for_datagen["LISA_A"]))
-    outs['LISA_E'].resize(len(psds_for_datagen["LISA_E"]))
 
     # Shift waveform so the merger is not at the end of the data
     outs['LISA_A'] = outs['LISA_A'].cyclic_time_shift(-waveform_params['additional_end_data'])
@@ -165,10 +150,75 @@ def generate_data_lisa_pre_merger(
         strain_w_A[:] += tout_A[:]
         strain_w_E[:] += tout_E[:]
 
+    # If duration is specified, discard the extra data
+    if duration is not None:
+        if duration > tout_A.duration:
+            raise RuntimeError(
+                "Specified duration is longer than the generated waveform"
+            )
+        nkeep = int(duration * sample_rate)
+        # New start time will be nkeep sample time
+        new_epoch = strain_w_A.sample_times[-nkeep]
+        strain_w_A = pycbc.types.TimeSeries(
+            strain_w_A.data[-nkeep:],
+            delta_t=strain_w_A.delta_t,
+        )
+        strain_w_E = pycbc.types.TimeSeries(
+            strain_w_E.data[-nkeep:],
+            delta_t=strain_w_E.delta_t,
+        )
+        # Set the start time so that the GPS time is still correct
+        strain_w_A.start_time = new_epoch
+        strain_w_E.start_time = new_epoch
+    
+    return {
+        "LISA_A": strain_w_A,
+        "LISA_E": strain_w_E,
+    }
+
+
+def pre_process_data_lisa_pre_merger(
+    data,
+    sample_rate,
+    psds_for_whitening,
+    window_length,
+    cutoff_time,
+    extra_forward_zeroes=0,
+):
+    """Pre-process the pre-merger data.
+
+    The data is truncated, windowed and whitened.
+
+    data : dict
+        Dictionary containing time-domain data. 
+    sample_rate : float
+        Sampling rate in Hz. 
+    psds_for_whitening : dict
+        PSDs for whitening.
+    window_length : int
+        Length of the hann window use to taper the start of the data.
+    cutoff_time : float
+        Time (in seconds) from the end of the waveform to cutoff.
+    extra_forward_zeros : float
+        Time (in seconds) to set to zero at the start of the waveform. If used,
+        the window will be applied starting after the zeroes.
+
+    Returns
+    -------
+    Dict[str: pycbc.types.TimeSeries]
+        Dictionary containing the time-domain data for each channel.
+    """
+    # Compute the hann window 
+    window = signal.windows.hann(window_length * 2 + 1)[:window_length]
+
+    # Number of samples to zero
+    nefz = int(extra_forward_zeroes * sample_rate)
+    nctf = int(cutoff_time * sample_rate)
+
     # Apply pre-merger kernel to both channels
     strain_ww = {}
     strain_ww["LISA_A"] = apply_pre_merger_kernel(
-        strain_w_A,
+        data,
         whitening_psd=psds_for_whitening["LISA_A"],
         window=window,
         window_length=window_length,
@@ -177,7 +227,7 @@ def generate_data_lisa_pre_merger(
         uids=(4235, 4236),
     )
     strain_ww["LISA_E"] = apply_pre_merger_kernel(
-        strain_w_E,
+        data,
         whitening_psd=psds_for_whitening["LISA_E"],
         window=window,
         window_length=window_length,
@@ -186,6 +236,7 @@ def generate_data_lisa_pre_merger(
         uids=(42350, 42360),
     )
     return strain_ww
+
 
 
 _WINDOW = None
