@@ -21,12 +21,14 @@ log likelihood.
 import copy
 import logging
 
+import pycbc.types
+
 from .base import BaseModel
 
 import pycbc.psd
 
 from pycbc.waveform.pre_merger_waveform import (
-    generate_data_lisa_pre_merger,
+    pre_process_data_lisa_pre_merger,
     generate_waveform_lisa_pre_merger,
 )
 from pycbc.psd.lisa_pre_merger import generate_pre_merger_psds
@@ -86,7 +88,7 @@ class LISAPreMergerModel(BaseModel):
         extra_forward_zeroes = int(kwargs.pop('extra_forward_zeroes'))
         tlen = int(kwargs.pop('tlen'))
         sample_rate = float(kwargs.pop('sample_rate'))
-        zero_noise = strtobool(kwargs.pop('zero_noise'))
+        data_file = kwargs.pop('data_file')
         inj_keys = [item for item in kwargs.keys() if item.startswith('injparam')]
         inj_params = {}
         for key in inj_keys:
@@ -122,18 +124,6 @@ class LISAPreMergerModel(BaseModel):
         if psd_file is None:
             raise ValueError("Must specify a PSD file!")
 
-        # Define PSDs for data generation
-        length = int(tlen * sample_rate)
-        flen = length // 2 + 1
-
-        # Assume A & E PSDs are the same
-        psd = pycbc.psd.from_txt(
-            psd_file, flen, 1./tlen, 1./tlen, is_asd_file=False
-        )
-        self.psds_for_datagen = {}
-        self.psds_for_datagen['LISA_A'] = psd
-        self.psds_for_datagen['LISA_E'] = psd.copy()
-
         # Zero phase PSDs for whitening
         # Only store the frequency-domain PSDs
         logging.info("Generating pre-merger PSDs")
@@ -159,28 +149,32 @@ class LISAPreMergerModel(BaseModel):
         self.cutoff_time = cutoff_time
         self.extra_forward_zeroes = extra_forward_zeroes
 
+        # Load the data from the file
+        data = {}
+        for channel in ["LISA_A", "LISA_E"]:
+            data[channel] = pycbc.types.timeseries.load_timeseries(
+                data_file,
+                group=f"/{channel}",
+            )
+
         # Want to remove this!
         # Need time from end of data (this includes the time after tc)
         cutoff_time = self.compute_cutoff_time(curr_params)
-
-        # Generate the pre-merger data
+        # Pre-process the pre-merger data
         # Returns time-domain data
         # Uses UIDs: 4235(0), 4236(0)
-        logging.info("Generating pre-merger data")
-        data = generate_data_lisa_pre_merger(
-            curr_params,
-            psds_for_datagen=self.psds_for_datagen,
+        logging.info("Pre-processing pre-merger data")
+        pre_merger_data = pre_process_data_lisa_pre_merger(
+            data,
+            sample_rate=sample_rate,
             psds_for_whitening=self.whitening_psds,
-            seed=seed,
             window_length=self.window_length, 
             cutoff_time=cutoff_time,
-            sample_rate=sample_rate,
             extra_forward_zeroes=self.extra_forward_zeroes,
-            zero_noise=zero_noise,
         )
 
-        self.lisa_a_strain = data["LISA_A"]
-        self.lisa_e_strain = data["LISA_E"]
+        self.lisa_a_strain = pre_merger_data["LISA_A"]
+        self.lisa_e_strain = pre_merger_data["LISA_E"]
 
         # Frequency-domain data for computing log-likelihood
         self.lisa_a_strain_fd = pycbc.strain.strain.execute_cached_fft(
