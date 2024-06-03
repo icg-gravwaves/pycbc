@@ -33,6 +33,7 @@ from pycbc.waveform.pre_merger_waveform import (
 )
 from pycbc.psd.lisa_pre_merger import generate_pre_merger_psds
 from pycbc.waveform.waveform import parse_mode_array
+from pycbc.waveform.utils import apply_fd_time_shift
 from .tools import marginalize_likelihood
 
 
@@ -89,32 +90,6 @@ class LISAPreMergerModel(BaseModel):
         tlen = int(kwargs.pop('tlen'))
         sample_rate = float(kwargs.pop('sample_rate'))
         data_file = kwargs.pop('data_file')
-        inj_keys = [item for item in kwargs.keys() if item.startswith('injparam')]
-        inj_params = {}
-        for key in inj_keys:
-            value = kwargs.pop(key)
-            # Type conversion needed ... Ugly!!
-            if key in ['injparam_run_phenomd']:
-                value = strtobool(value)
-            elif key in ['injparam_approximant']:
-                pass  # Convert to string, so do nothing
-            elif key in ['injparam_t_obs_start']:
-                value = int(value)
-            elif key in ['injparam_mode_array']:
-                # If value is
-                if "(" in value:
-                    raise NotImplementedError
-                elif "[" in value:
-                    raise NotImplementedError
-                else:
-                    # e.g '22 33 44'
-                    pass
-            else:
-                value = float(value)
-            inj_params[key.replace('injparam_', '')] = value
-
-        inj_params = parse_mode_array(inj_params)
-        logging.info(f"Pre-merger injection parameters:\n {inj_params}")
         
         # set up base likelihood parameters
         super().__init__(variable_params, **kwargs)
@@ -142,7 +117,6 @@ class LISAPreMergerModel(BaseModel):
         )["FD"]
 
         # Store data for doing likelihoods.
-        curr_params = inj_params
         self.kernel_length = kernel_length
         self.window_length = window_length
         self.sample_rate = sample_rate
@@ -157,9 +131,6 @@ class LISAPreMergerModel(BaseModel):
                 group=f"/{channel}",
             )
 
-        # Want to remove this!
-        # Need time from end of data (this includes the time after tc)
-        cutoff_time = self.compute_cutoff_time(curr_params)
         # Pre-process the pre-merger data
         # Returns time-domain data
         # Uses UIDs: 4235(0), 4236(0)
@@ -169,7 +140,7 @@ class LISAPreMergerModel(BaseModel):
             sample_rate=sample_rate,
             psds_for_whitening=self.whitening_psds,
             window_length=self.window_length, 
-            cutoff_time=cutoff_time,
+            cutoff_time=self.cutoff_time,
             extra_forward_zeroes=self.extra_forward_zeroes,
         )
 
@@ -188,23 +159,11 @@ class LISAPreMergerModel(BaseModel):
             uid=3223967
         )
 
-    def compute_cutoff_time(self, cparams):
-        """Cutoff time including post merger data."""
-        return (
-            self.cutoff_time
-            + (
-                cparams['start_gps_time']
-                + cparams['t_obs_start']
-                - cparams['tc']
-            )
-        )
-
     def _loglikelihood(self):
         """Compute the pre-merger log-likelihood."""
         cparams = copy.deepcopy(self.static_params)
         cparams.update(self.current_params)
-        # Compute cutoff times that includes
-        cutoff_time = self.compute_cutoff_time(cparams)
+
         # Generate the pre-merger waveform
         # These waveforms are whitened
         # Uses UIDs: 1234(0), 1235(0), 1236(0), 1237(0)
@@ -213,11 +172,17 @@ class LISAPreMergerModel(BaseModel):
             psds_for_whitening=self.whitening_psds,
             window_length=self.window_length,
             sample_rate=self.sample_rate,
-            cutoff_time=cutoff_time,
+            cutoff_time=self.cutoff_time,
             extra_forward_zeroes=self.extra_forward_zeroes,
         )
-        wform_lisa_a = ws['LISA_A']
-        wform_lisa_e = ws['LISA_E']
+
+        # Apply a time shift to ensure the data has the correct epoch
+        wform_lisa_a = apply_fd_time_shift(
+            ws['LISA_A'], cparams["tc"], copy=True
+        )
+        wform_lisa_e = apply_fd_time_shift(
+            ws['LISA_E'], cparams["tc"], copy=True
+        )
 
         # Compute <h|d> for each channel
         snr_A = pycbc.filter.overlap_cplx(
