@@ -101,6 +101,7 @@ class LISAPreMergerModel(BaseModel):
         self.sample_rate = sample_rate
         self.cutoff_time = cutoff_time
         self.extra_forward_zeroes = extra_forward_zeroes
+        self.tlen = tlen
 
         # Load the data from the file
         data = {}
@@ -145,23 +146,30 @@ class LISAPreMergerModel(BaseModel):
         
         Note: `params` should already include the static parameters.
         """
+        dt = params["tc"] - self._epoch
         # Generate the pre-merger waveform
         # These waveforms are whitened
         # Uses UIDs: 1235(0), 1236(0)
+        dt_end = params.get("cutoff_deltat", self.tlen - dt)
+        cutoff_time = self.cutoff_time - dt_end
+        forward_zeroes = (
+            self.extra_forward_zeroes
+            + self.kernel_length
+            + int(dt_end * self.sample_rate)
+        )
         ws = generate_waveform_lisa_pre_merger(
             params,
             psds_for_whitening=self.whitening_psds,
             window_length=self.window_length,
             sample_rate=self.sample_rate,
-            cutoff_time=self.cutoff_time,
-            forward_zeroes=self.extra_forward_zeroes + self.kernel_length,
+            cutoff_time=cutoff_time,
+            forward_zeroes=forward_zeroes,
         )
 
         wf = {}
         # Adjust epoch to match data and shift merger to the
         # correct time.
         # Can safely set copy=False since ws won't be used again.
-        dt = params["tc"] - self._epoch
         for channel in ws.keys():
             wf[channel] = apply_fseries_time_shift(
                 ws[channel], dt, copy=False,
