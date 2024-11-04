@@ -147,16 +147,23 @@ class LISAPreMergerModel(BaseModel):
         Note: `params` should already include the static parameters.
         """
         dt = params["tc"] - self._epoch
-        # Generate the pre-merger waveform
-        # These waveforms are whitened
-        # Uses UIDs: 1235(0), 1236(0)
+        # Time between the end of the data and the time of coalescence
         dt_end = params.get("cutoff_deltat", self.tlen - dt)
+        # Actual time between the end of the data and the cutoff time
+        # since cutoff time is specified relative to the merger
         cutoff_time = self.cutoff_time - dt_end
+        # Additional zeros at the beginning of the data, these:
+        # - manually specified zeroes
+        # - kernel length zeros
+        # - zeros that will be wrapped around when the data is shifted
         forward_zeroes = (
             self.extra_forward_zeroes
             + self.kernel_length
             + int(dt_end * self.sample_rate)
         )
+        # Generate the pre-merger waveform
+        # These waveforms are whitened
+        # Uses UIDs: 1235(0), 1236(0)
         ws = generate_waveform_lisa_pre_merger(
             params,
             psds_for_whitening=self.whitening_psds,
