@@ -531,7 +531,7 @@ def make_single_template_files(workflow, segs, singles, bank_file, ifo,
     return node.output_files
 
 
-def make_harmonic_waveform(workflow, singles, bank_file, psd_file,  out_dir,
+def make_harmonic_waveform(workflow, singles, bank_file, psd_files,  out_dir,
                            veto_file=None, special_tids=None,
                            tags=None):
     tags = [] if tags is None else tags
@@ -541,7 +541,7 @@ def make_harmonic_waveform(workflow, singles, bank_file, psd_file,  out_dir,
     node = PlotExecutable(workflow.cp, name, ifos=workflow.ifos,
                           out_dir=out_dir, tags=tags).create_node()
     node.add_multiifo_input_list_opt('--single-trigger-files', singles)
-    node.add_multiifo_input_list_opt('--merge-psd-files', psd_file)
+    node.add_multiifo_input_list_opt('--merge-psd-files', psd_files)
     node.add_input_opt('--bank-file', bank_file)
     if veto_file is not None:
         node.add_input_opt('--veto-file', veto_file)
