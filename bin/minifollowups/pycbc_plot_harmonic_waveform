@@ -151,8 +151,7 @@ def compute_harmonic_waveform(trigs, special_idx, ifo, merge_psd_file):
 
     p_det = _make_waveform_from_precessing_harmonics(phenom_object, harmonics_dict, amplitudes_dict, phases_dict)
 
-    #Time-shift needed to wrap around the IFFT
-    ####Hard-coded to 10, need to change this
+    # Apply 2s time-shift to wrap the merger away from the endfor plotting
     pt_det = p_det.to_timeseries()
     shifted_t = pt_det.cyclic_time_shift(-2)
 
