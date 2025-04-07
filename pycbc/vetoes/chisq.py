@@ -594,7 +594,7 @@ class SingleDetTHAPowerChisq(SingleDetPowerChisq):
                         local_snrs.conj()
                         / numpy.sum((local_snrs * local_snrs.conj()).real) ** 0.5
                     ]
-                    
+
                 bins = numpy.stack(bins, axis=0)
                 scales = numpy.stack(scales, axis=0)
                 
