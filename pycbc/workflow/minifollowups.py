@@ -550,8 +550,6 @@ def make_harmonic_waveform(workflow, singles, bank_file, psd_files,
     node.new_output_file_opt(workflow.analysis_time, '.png', '--output-file')
     node.add_opt('--special-trigger-ids', special_tids)
     node.add_input_opt('--inspiral-segments', segs)
-    if inj_file is not None:
-        node.add_input_opt('--injection-file', inj_file)
     node.add_opt('--data-read-name', data_read_name)
     node.add_opt('--data-analyzed-name', analyzed_name)
 
