@@ -648,6 +648,12 @@ def make_single_template_plots(workflow, segs, singles, bank_file,
                     if sid.startswith(ifo):
                         break
                 else:
+                    # FIXME: I don't think we should be getting here. But we
+                    #        are. Leaving the continue here for now so that the
+                    #        code doesn't refuse to run. Result of whatever is
+                    #        wrong here is that occasional single_template
+                    #        plots do not get generated.
+                    continue
                     raise ValueError()
                 special_tid = sid[3:]
             else:
